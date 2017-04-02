@@ -1,7 +1,12 @@
 /*jshint -W030 */
 
-var expect = require('chai').expect;
+var Bluebird = require('bluebird'),
+  expect = require('chai').expect,
+  Docker = require('../lib/docker');
+
 var docker = require('./spec_helper').docker;
+var dockert = require('./spec_helper').dockert;
+
 
 var testImage = 'ubuntu:14.04';
 var testVolume = {
@@ -9,19 +14,23 @@ var testVolume = {
   "Driver": "local",
   "Mountpoint": "/var/lib/docker/volumes/tardis"
 };
-var testNetwork = {
-  "Name": "isolated_nw",
-  "Driver": "bridge",
-  "IPAM": {
-    "Config": [{
-      "Subnet": "172.20.0.0/16",
-      "IPRange": "172.20.10.0/24",
-      "Gateway": "172.20.10.11"
-    }]
-  }
-};
 
 describe("#docker", function() {
+
+  describe("#constructors", function()  {
+    it("should work without options", function(done) {
+      var d = new Docker();
+      expect(d.modem.socketPath).not.to.be.null;
+      done();
+    });
+    it("should not send Promise options to docker-modem", function(done) {
+      var d = new Docker({
+        'Promise': Bluebird
+      });
+      expect(d.modem.socketPath).not.to.be.null;
+      done();
+    });
+  });
 
   describe("#checkAuth", function() {
     it("should fail auth", function(done) {
@@ -78,6 +87,28 @@ describe("#docker", function() {
 
       var data = require('fs').createReadStream('./test/test.tar');
       docker.buildImage(data, handler);
+    });
+
+    it("should build image from multiple files", function(done) {
+      this.timeout(60000);
+
+      function handler(err, stream) {
+        expect(err).to.be.null;
+        expect(stream).to.be.ok;
+
+        stream.pipe(process.stdout, {
+          end: true
+        });
+
+        stream.on('end', function() {
+          done();
+        });
+      }
+
+      docker.buildImage({
+        context: __dirname,
+        src: ['Dockerfile']
+      }, {}, handler);
     });
   });
 
@@ -336,30 +367,6 @@ describe("#docker", function() {
       }
 
       docker.createVolume(testVolume, handler);
-    });
-  });
-
-  describe("#createNetwork", function() {
-    it("should create and remove a network", function(done) {
-      this.timeout(5000);
-
-      function handler(err, network) {
-        expect(err).to.be.null;
-        expect(network).to.be.ok;
-
-        network.inspect(function(err, info) {
-          expect(err).to.be.null;
-          expect(info.Name).to.equal(testNetwork.Name);
-          expect(info.Id).to.not.be.null;
-
-          network.remove(function(err, data) {
-            expect(err).to.be.null;
-            done();
-          });
-        });
-      }
-
-      docker.createNetwork(testNetwork, handler);
     });
   });
 

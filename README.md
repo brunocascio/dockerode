@@ -13,6 +13,7 @@ Why `dockerode` is different from other Docker node.js modules:
 * **run** - `dockerode` allow you to seamless run commands in a container ala `docker run`.
 * **tests** - `dockerode` really aims to have a good test set, allowing to follow `Docker` changes easily, quickly and painlessly.
 * **feature-rich** - There's a real effort in keeping **All** `Docker` Remote API features implemented and tested.
+* **interfaces** - Features a **callback** and a **promise** based interfaces, making everyone happy :)
 
 
 ## Installation
@@ -43,7 +44,8 @@ var docker5 = new Docker({
   port: process.env.DOCKER_PORT || 2375,
   ca: fs.readFileSync('ca.pem'),
   cert: fs.readFileSync('cert.pem'),
-  key: fs.readFileSync('key.pem')
+  key: fs.readFileSync('key.pem'),
+  version: 'v1.25' // required when Docker >= v1.13, https://docs.docker.com/engine/api/version-history/
 });
 
 var docker6 = new Docker({
@@ -53,6 +55,12 @@ var docker6 = new Docker({
   ca: fs.readFileSync('ca.pem'),
   cert: fs.readFileSync('cert.pem'),
   key: fs.readFileSync('key.pem')
+});
+
+//using a different promise library (default is the native one)
+var docker7 = new Docker({
+  Promise: require('bluebird')
+  //...
 });
 //...
 ```
@@ -76,7 +84,32 @@ container.remove(function (err, data) {
   console.log(data);
 });
 
-//...
+// promises are supported
+docker.createContainer({
+  Image: 'ubuntu',
+  AttachStdin: false,
+  AttachStdout: true,
+  AttachStderr: true,
+  Tty: true,
+  Cmd: ['/bin/bash', '-c', 'tail -f /var/log/dmesg'],
+  OpenStdin: false,
+  StdinOnce: false
+}).then(function(container) {
+  return container.start();
+}).then(function(container) {
+  return container.resize({
+    h: process.stdout.rows,
+    w: process.stdout.columns
+  });
+}).then(function(container) {
+  return container.stop();
+}).then(function(container) {
+  return container.remove();
+}).then(function(data) {
+  console.log('container removed');
+}).catch(function(err) {
+  console.log(err);
+});
 ```
 
 You may also specify default options for each container's operations, which will always be used for the specified container and operation.
@@ -99,6 +132,13 @@ docker.listContainers(function (err, containers) {
 
 ``` js
 docker.buildImage('archive.tar', {t: imageName}, function (err, response){
+  //...
+});
+
+docker.buildImage({
+  context: __dirname,
+  src: ['Dockerfile', 'file1', 'file2']
+}, {t: imageName}, function (err, response) {
   //...
 });
 ```
@@ -176,11 +216,22 @@ docker.createContainer({Tty: false, /*... other options */}, function(err, conta
 * `stream` - stream(s) which will be used for execution output.
 * `create_options` - options used for container creation. (optional)
 * `start_options` - options used for container start. (optional)
-* `callback` - callback called when execution ends.
+* `callback` - callback called when execution ends (optional, promise will be returned if not used).
 
 ``` js
+//callback
 docker.run('ubuntu', ['bash', '-c', 'uname -a'], process.stdout, function (err, data, container) {
   console.log(data.StatusCode);
+});
+
+//promise
+docker.run(testImage, ['bash', '-c', 'uname -a'], process.stdout).then(function(container) {
+  console.log(container.output.StatusCode);
+  return container.remove();
+}).then(function(data) {
+  console.log('container removed');
+}).catch(function(err) {
+  console.log(err);
 });
 ```
 
@@ -192,7 +243,8 @@ docker.run('ubuntu', ['bash', '-c', 'uname -a'], [process.stdout, process.stderr
 });
 ```
 
-Run also returns an EventEmitter supporting the following events: container, stream, data. Allowing stuff like this:
+If you provide a callback, `run` will return an EventEmitter supporting the following events: container, stream, data.
+If a callback isn't provided a promise will be returned.
 
 ``` js
 docker.run('ubuntu', ['bash', '-c', 'uname -a'], [process.stdout, process.stderr], {Tty:false}, function (err, data, container) {

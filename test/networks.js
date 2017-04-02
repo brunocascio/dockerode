@@ -10,6 +10,7 @@ describe("#networks", function() {
   var testNetwork;
 
   before(function(done) {
+    this.timeout(30000);
     docker.createContainer({
       Image: 'ubuntu',
       AttachStdin: false,
@@ -32,7 +33,7 @@ describe("#networks", function() {
             "Config": [{
               "Subnet": "172.20.0.0/16",
               "IPRange": "172.20.10.0/24",
-              "Gateway": "172.20.10.11"
+              "Gateway": "172.20.10.12"
             }]
           }
         }, function(err, network) {
@@ -77,12 +78,6 @@ describe("#networks", function() {
   });
 
   describe("#inspect", function() {
-    it("should inspect a network without callback", function(done) {
-      var network = testNetwork;
-      expect(network.inspect()).to.be.a('string');
-      done();
-    });
-
     it("should inspect a network", function(done) {
       var network = testNetwork;
 
